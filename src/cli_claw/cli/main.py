@@ -6,7 +6,7 @@ import typer
 from rich import print
 
 from cli_claw.runtime.orchestrator import RuntimeOrchestrator
-from cli_claw.schemas.events import MessageInput
+from cli_claw.schemas.channel import InboundEnvelope
 from cli_claw.schemas.provider import CapabilityMap, ProviderSpec
 
 app = typer.Typer(help="cli-claw")
@@ -27,8 +27,12 @@ def demo(provider: str = "iflow", message: str = "hello") -> None:
             rt.register_provider(ProviderSpec(id="qwen", command="qwen", args=["--acp"], capabilities=CapabilityMap(streaming=True, sessions=True, tools=True, model_switch=True)))
         else:
             raise typer.BadParameter(f"unsupported provider: {provider}")
-        out = await rt.handle_message(provider, "demo-session", MessageInput(channel="cli", chat_id="direct", content=message))
-        print(out.content)
+        out = await rt.handle_inbound(
+            provider,
+            "demo-session",
+            InboundEnvelope(channel="cli", chat_id="direct", text=message),
+        )
+        print(out.text)
 
     asyncio.run(_run())
 

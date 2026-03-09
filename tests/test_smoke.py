@@ -1,7 +1,7 @@
 import pytest
 
 from cli_claw.runtime.orchestrator import RuntimeOrchestrator
-from cli_claw.schemas.events import MessageInput
+from cli_claw.schemas.channel import InboundEnvelope
 from cli_claw.schemas.provider import CapabilityMap, ProviderSpec
 
 
@@ -16,8 +16,9 @@ async def test_runtime_orchestrator_smoke_iflow():
             capabilities=CapabilityMap(streaming=True, sessions=True),
         )
     )
-    out = await rt.handle_message("iflow", "s1", MessageInput(channel="cli", chat_id="d1", content="hello"))
-    assert out.content == "iflow:hello"
+    out = await rt.handle_inbound("iflow", "s1", InboundEnvelope(channel="cli", chat_id="d1", text="hello"))
+    assert out.text == "iflow:hello"
+    assert out.reply_to_id is None
     assert rt.providers.list() == ["iflow"]
     assert len(rt.transcript.list_for_session("s1")) == 2
 
@@ -33,5 +34,5 @@ async def test_runtime_orchestrator_smoke_qwen():
             capabilities=CapabilityMap(streaming=True, sessions=True),
         )
     )
-    out = await rt.handle_message("qwen", "s2", MessageInput(channel="cli", chat_id="d2", content="hello"))
-    assert out.content == "qwen:hello"
+    out = await rt.handle_inbound("qwen", "s2", InboundEnvelope(channel="cli", chat_id="d2", text="hello"))
+    assert out.text == "qwen:hello"

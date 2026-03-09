@@ -13,9 +13,11 @@ class TranscriptRecord(BaseModel):
     provider: str
     channel: str | None = None
     chat_id: str | None = None
+    message_id: str | None = None
+    reply_to_id: str | None = None
     role: Literal["user", "assistant", "tool", "system", "thought"]
     kind: Literal["delta", "final", "error", "event"]
     content: str = ""
-    attachments: list[str] = Field(default_factory=list)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
     tool: dict[str, Any] = Field(default_factory=dict)
     meta: dict[str, Any] = Field(default_factory=dict)
