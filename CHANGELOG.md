@@ -1,10 +1,18 @@
 # Changelog
 
+## 0.1.3 - 2026-03-10
+
+- channels: route Feishu webhook inbound events through ChannelRuntime (parse -> runtime) and add challenge test coverage
+- runtime: expose `handle_inbound` to allow webhook integrations to bypass channel emit
+
 ## 0.1.2 - 2026-03-10
 
 - channels: add `FeishuChannel` MVP with inbound event parsing and minimal text outbound via webhook or tenant API
+- channels: add minimal Feishu webhook HTTP receiver and CLI entrypoint that routes inbound events to runtime
 - channels: export `FeishuChannel` in channel module
+- session: add logical session id resolver for channel runtime routing
 - tests: add unit coverage for Feishu inbound parsing and outbound webhook dispatch
+- tests: add integration coverage for Feishu webhook -> runtime routing
 
 ## 0.1.1 - 2026-03-10
 

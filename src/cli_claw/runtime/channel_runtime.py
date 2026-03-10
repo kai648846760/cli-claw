@@ -82,6 +82,9 @@ class ChannelRuntime:
 
         await self.channels.enqueue(outbound)
 
+    async def handle_inbound(self, channel_name: str, inbound: InboundEnvelope) -> None:
+        await self._handle_inbound(channel_name, inbound)
+
     def _make_inbound_handler(self, channel_name: str):
         async def _handler(inbound: InboundEnvelope) -> None:
             await self._handle_inbound(channel_name, inbound)
