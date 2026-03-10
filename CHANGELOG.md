@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 - 2026-03-10
+
+- channels: add stub channel classes for Slack/Discord/Telegram/Email/Dingtalk/Mochat/QQ/Whatsapp to mirror iflow-bot coverage
+- tests: add stub channel smoke test
+
 ## 0.1.5 - 2026-03-10
 
 - feishu: add encrypt-key signature verification for webhook callbacks
