@@ -196,7 +196,50 @@ cli-claw 子 agent 协同规则（强制）
 ### 阻塞点
 - 无新增硬阻塞；但进入平台迁移前，建议主线程确认：
   - `reply_to_id` 在各平台的映射优先级
-  - 流式消息 patch 失败时的统一降级策略
+- 流式消息 patch 失败时的统一降级策略
+
+---
+
+## [子agent: cli-claw-channel-runtime | 2026-03-10 10:15 GMT+8] Channel Runtime 最小主线打通
+
+### 负责范围
+- 打通 channel inbound -> runtime -> outbound 的最小主线
+- 增补内存通道用于测试与本地联调
+- 补充路由与回执的单元测试
+
+### 触达文件
+- 新增：
+  - `src/cli_claw/runtime/channel_runtime.py`
+  - `src/cli_claw/channels/local.py`
+  - `tests/test_channel_runtime.py`
+- 修改：
+  - `src/cli_claw/channels/base.py`
+  - `src/cli_claw/channels/manager.py`
+  - `src/cli_claw/channels/__init__.py`
+  - `src/cli_claw/runtime/__init__.py`
+  - `CHANGELOG.md`
+
+### 已完成
+- `BaseChannel` 增加 inbound handler 与 `emit_inbound` 入口
+- `ChannelManager` 支持绑定 inbound handler
+- 新增 `ChannelRuntime`：按 route 选择 provider、分配 session、异常回执
+- `LocalChannel` 用于本地注入入站与捕获出站
+- 新增 runtime 路由测试覆盖主线
+
+### 未完成
+- 真实平台 channel（Feishu/Telegram/Discord）仍未接入
+- streaming patch/edit 的完整链路仍未落地
+
+### 阻塞点
+- 无新增硬阻塞
+
+### 下一步
+1. 接入 Feishu 真实 channel（文本入站/出站 + reply_to）
+2. 完善 streaming patch/edit 与失败降级策略
+3. 将 route/config 外置到配置层
+
+### 是否需要主线程裁决
+- 否
 
 ### 下一步
 1. 以 `ChannelAttachment` 为核心抽象扩展平台媒体映射
@@ -207,4 +250,3 @@ cli-claw 子 agent 协同规则（强制）
 - **建议裁决（非阻塞）**：
   1) stream patch 失败降级规范
   2) channel 会话键是否引入 thread 维度
-

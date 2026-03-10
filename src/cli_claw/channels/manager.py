@@ -4,7 +4,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-from cli_claw.channels.base import BaseChannel
+from cli_claw.channels.base import BaseChannel, InboundHandler
 from cli_claw.schemas.channel import OutboundEnvelope
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,12 @@ class ChannelManager:
         if not channel.is_allowed(envelope):
             raise ValueError(f"Channel '{envelope.channel}' rejected outbound envelope")
         await channel.send(envelope)
+
+    def bind_inbound_handler(self, name: str, handler: InboundHandler | None) -> None:
+        channel = self._channels.get(name)
+        if channel is None:
+            raise ValueError(f"Channel '{name}' not found")
+        channel.set_inbound_handler(handler)
 
     async def _dispatch_loop(self) -> None:
         while True:

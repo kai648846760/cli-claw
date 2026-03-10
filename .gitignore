@@ -1,0 +1,13 @@
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.dylib
+*.dll
+*.egg-info/
+.env
+.env.*
+.DS_Store

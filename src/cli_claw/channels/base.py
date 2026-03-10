@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 
-from cli_claw.schemas.channel import OutboundEnvelope
+from cli_claw.schemas.channel import InboundEnvelope, OutboundEnvelope
+
+InboundHandler = Callable[[InboundEnvelope], Awaitable[None]]
 
 
 class BaseChannel(ABC):
@@ -10,6 +13,7 @@ class BaseChannel(ABC):
 
     def __init__(self) -> None:
         self._running = False
+        self._inbound_handler: InboundHandler | None = None
 
     @property
     def is_running(self) -> bool:
@@ -29,3 +33,11 @@ class BaseChannel(ABC):
     def is_allowed(self, envelope: OutboundEnvelope) -> bool:
         _ = envelope
         return True
+
+    def set_inbound_handler(self, handler: InboundHandler | None) -> None:
+        self._inbound_handler = handler
+
+    async def emit_inbound(self, inbound: InboundEnvelope) -> None:
+        if self._inbound_handler is None:
+            raise RuntimeError("Inbound handler is not set")
+        await self._inbound_handler(inbound)
