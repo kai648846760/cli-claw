@@ -41,6 +41,32 @@ Protocol Bridges
 (acp / openclaw / stdout-json / ...)
 ```
 
+## Quickstart (Feishu webhook)
+
+```bash
+# 1) create venv & install dev deps
+uv venv
+uv pip install -e .
+uv pip install -e .[dev]
+
+# 2) export Feishu secrets (optional but recommended)
+export FEISHU_VERIFICATION_TOKEN=your_token
+export FEISHU_ENCRYPT_KEY=your_encrypt_key
+export FEISHU_APP_ID=cli_xxx
+export FEISHU_APP_SECRET=xxx
+export FEISHU_BOT_WEBHOOK_URL=https://example.com/hook  # optional outbound shortcut
+
+# 3) run webhook server
+uv run python -m cli_claw.cli.main feishu-webhook --provider iflow --port 8000
+```
+
+### Local E2E simulation
+
+```bash
+uv run python scripts/feishu_e2e_sim.py
+```
+
 ## Status
 
-This project is currently in architecture-first bootstrap stage.
+Feishu inbound webhook -> runtime -> outbound chain is wired and test-covered.
+Next: full Feishu live callback verification + Telegram/Discord migration.

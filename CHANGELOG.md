@@ -8,6 +8,8 @@
 
 ## 0.1.4 - 2026-03-10
 
+- docs: add Feishu webhook quickstart + local E2E usage
+
 - feishu: add webhook verification token check for real event subscription chain
 - feishu: return HTTP status codes from webhook processor and cover invalid token case
 - feishu: allow configuration via `FEISHU_VERIFICATION_TOKEN`
