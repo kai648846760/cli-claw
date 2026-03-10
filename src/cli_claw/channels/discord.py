@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from cli_claw.channels.base import BaseChannel
-from cli_claw.channels.http_client import post_json
-from cli_claw.schemas.channel import InboundEnvelope, OutboundEnvelope
+from cli_claw.channels.http_client import post_json, post_multipart
+from cli_claw.schemas.channel import ChannelAttachment, InboundEnvelope, OutboundEnvelope
 
 
 @dataclass
@@ -77,22 +77,42 @@ class DiscordChannel(BaseChannel):
         )
 
     async def send(self, envelope: OutboundEnvelope) -> None:
-        if not self.is_allowed(envelope):
-            raise ValueError("DiscordChannel only supports outbound text without attachments")
-
         metadata = envelope.metadata or {}
         token = metadata.get("interaction_token")
         app_id = metadata.get("application_id")
 
+        url = None
         if token and app_id:
             url = f"{self.config.base_url}/webhooks/{app_id}/{token}"
-            payload = {"content": envelope.text}
-            await post_json(url, payload, headers={}, timeout=self.config.request_timeout)
+        elif self.config.webhook_url:
+            url = self.config.webhook_url
+
+        if not url:
+            raise RuntimeError("Discord webhook missing; set DISCORD_WEBHOOK_URL or provide interaction token")
+
+        if envelope.attachments:
+            await self._send_attachments(url, envelope)
             return
 
-        if self.config.webhook_url:
-            payload = {"content": envelope.text}
-            await post_json(self.config.webhook_url, payload, headers={}, timeout=self.config.request_timeout)
-            return
+        payload = {"content": envelope.text}
+        await post_json(url, payload, headers={}, timeout=self.config.request_timeout)
 
-        raise RuntimeError("Discord webhook missing; set DISCORD_WEBHOOK_URL or provide interaction token")
+    async def _send_attachments(self, url: str, envelope: OutboundEnvelope) -> None:
+        for attachment in envelope.attachments:
+            if attachment.path:
+                await self._send_file(url, envelope, attachment, attachment.path)
+                continue
+            if attachment.url:
+                await self._send_url(url, envelope, attachment, attachment.url)
+                continue
+            raise ValueError("DiscordChannel attachment missing path/url")
+
+    async def _send_file(self, url: str, envelope: OutboundEnvelope, attachment: ChannelAttachment, path: str) -> None:
+        fields: dict[str, Any] = {"payload_json": {"content": envelope.text or ""}}
+        files = {"files[0]": {"path": path, "filename": attachment.name or path}}
+        await post_multipart(url, fields, files, headers={}, timeout=self.config.request_timeout)
+
+    async def _send_url(self, url: str, envelope: OutboundEnvelope, attachment: ChannelAttachment, link: str) -> None:
+        content = envelope.text or link
+        payload = {"content": content}
+        await post_json(url, payload, headers={}, timeout=self.config.request_timeout)

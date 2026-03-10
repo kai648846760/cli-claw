@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.8 - 2026-03-11
+
+- discord: add outbound attachment support with multipart uploads
+- tests: cover discord attachment send path
+
 ## 0.1.7 - 2026-03-11
 
 - channels: add multipart upload support for attachment delivery

@@ -148,6 +148,27 @@ async def test_discord_parse_and_send(monkeypatch):
     assert sent["url"] == "https://discord.test/api/webhooks/app/tok"
     assert sent["payload"]["content"] == "ok"
 
+    async def _fake_multipart(url, fields, files, headers, timeout):
+        sent["url"] = url
+        sent["fields"] = fields
+        sent["files"] = files
+        sent["headers"] = headers
+        sent["timeout"] = timeout
+        return {"ok": True}
+
+    monkeypatch.setattr("cli_claw.channels.discord.post_multipart", _fake_multipart)
+    await channel.send(
+        OutboundEnvelope(
+            channel="discord",
+            chat_id="c1",
+            text="file",
+            attachments=[{"kind": "file", "name": "demo.txt", "path": "/tmp/demo.txt"}],
+            metadata={"interaction_token": "tok", "application_id": "app"},
+        )
+    )
+    assert "/webhooks/app/tok" in sent["url"]
+    assert "files[0]" in sent["files"]
+
 
 @pytest.mark.asyncio
 async def test_simple_channels_parse_and_send(monkeypatch):
