@@ -12,21 +12,49 @@ from cli_claw.runtime.channel_runtime import ChannelRuntime
 
 logger = logging.getLogger(__name__)
 
+_TOKEN_KEYS = (
+    ("header", "token"),
+    ("token",),
+)
+
+
+def _extract_token(payload: dict[str, Any]) -> str | None:
+    for keys in _TOKEN_KEYS:
+        current: Any = payload
+        for key in keys:
+            if not isinstance(current, dict):
+                current = None
+                break
+            current = current.get(key)
+        if isinstance(current, str) and current:
+            return current
+    return None
+
+
+def _verify_token(channel: FeishuChannel, payload: dict[str, Any]) -> bool:
+    expected = channel.config.verification_token
+    if not expected:
+        return True
+    token = _extract_token(payload)
+    return token == expected
+
 
 async def process_feishu_webhook_payload(
     channel: FeishuChannel,
     runtime: ChannelRuntime,
     payload: dict[str, Any],
-) -> dict[str, Any]:
+) -> tuple[int, dict[str, Any]]:
+    if not _verify_token(channel, payload):
+        return 401, {"ok": False, "error": "invalid token"}
     if "challenge" in payload:
-        return {"challenge": payload.get("challenge")}
+        return 200, {"challenge": payload.get("challenge")}
 
     inbound = channel.parse_inbound_event(payload)
     if inbound is None:
-        return {"ok": True, "skipped": True}
+        return 200, {"ok": True, "skipped": True}
 
     await runtime.handle_inbound(channel.name, inbound)
-    return {"ok": True}
+    return 200, {"ok": True}
 
 
 def _make_handler(
@@ -56,7 +84,7 @@ def _make_handler(
                     process_feishu_webhook_payload(channel, runtime, payload),
                     loop,
                 )
-                response_payload = future.result(timeout=5)
+                status_code, response_payload = future.result(timeout=5)
             except Exception:
                 logger.exception("Feishu webhook processing failed")
                 self.send_response(500)
@@ -64,7 +92,7 @@ def _make_handler(
                 return
 
             body = json.dumps(response_payload).encode("utf-8")
-            self.send_response(200)
+            self.send_response(status_code)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()

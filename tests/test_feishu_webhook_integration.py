@@ -86,9 +86,10 @@ async def test_feishu_webhook_routes_to_runtime():
         },
     }
 
-    response = await process_feishu_webhook_payload(channel, runtime, payload)
+    status, response = await process_feishu_webhook_payload(channel, runtime, payload)
     await manager._queue.join()
 
+    assert status == 200
     assert response == {"ok": True}
     assert captured["url"] == "https://example.com/hook"
     assert captured["payload"]["content"]["text"] == "echo:hello"
@@ -110,8 +111,37 @@ async def test_feishu_webhook_challenge_passthrough():
     await runtime.start(["feishu"])
 
     payload = {"challenge": "token-123"}
-    response = await process_feishu_webhook_payload(channel, runtime, payload)
+    status, response = await process_feishu_webhook_payload(channel, runtime, payload)
 
+    assert status == 200
     assert response == {"challenge": "token-123"}
+
+    await runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_feishu_webhook_rejects_invalid_token():
+    channel = FeishuChannel()
+    channel.config.verification_token = "expected"
+
+    manager = ChannelManager()
+    manager.register("feishu", lambda: channel)
+
+    orchestrator = RuntimeOrchestrator()
+    orchestrator.providers = _FakeRegistry(_FakeProvider())
+
+    runtime = ChannelRuntime(orchestrator, manager)
+    runtime.register_route("feishu", "fake")
+    await runtime.start(["feishu"])
+
+    payload = {
+        "schema": "2.0",
+        "header": {"token": "wrong"},
+        "event": {"message": {"message_id": "om_1", "chat_id": "oc_9", "content": "{\"text\":\"hi\"}"}},
+    }
+    status, response = await process_feishu_webhook_payload(channel, runtime, payload)
+
+    assert status == 401
+    assert response["ok"] is False
 
     await runtime.stop()

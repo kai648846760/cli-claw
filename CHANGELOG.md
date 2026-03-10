@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2026-03-10
+
+- feishu: add webhook verification token check for real event subscription chain
+- feishu: return HTTP status codes from webhook processor and cover invalid token case
+- feishu: allow configuration via `FEISHU_VERIFICATION_TOKEN`
+
 ## 0.1.3 - 2026-03-10
 
 - channels: route Feishu webhook inbound events through ChannelRuntime (parse -> runtime) and add challenge test coverage

@@ -21,6 +21,7 @@ class FeishuConfig:
     app_id: str | None = None
     app_secret: str | None = None
     bot_webhook_url: str | None = None
+    verification_token: str | None = None
     base_url: str = "https://open.feishu.cn"
     request_timeout: float = 10.0
 
@@ -30,6 +31,7 @@ def _load_config() -> FeishuConfig:
         app_id=os.getenv("FEISHU_APP_ID"),
         app_secret=os.getenv("FEISHU_APP_SECRET"),
         bot_webhook_url=os.getenv("FEISHU_BOT_WEBHOOK_URL"),
+        verification_token=os.getenv("FEISHU_VERIFICATION_TOKEN"),
         base_url=os.getenv("FEISHU_BASE_URL", "https://open.feishu.cn"),
     )
 
