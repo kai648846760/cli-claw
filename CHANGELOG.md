@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5 - 2026-03-10
+
+- feishu: add encrypt-key signature verification for webhook callbacks
+- feishu: support decrypting encrypted event payloads using AES-CBC + PKCS7 when cryptography is available
+- tests: cover signature rejection and encrypted payload processing (skips if cryptography missing)
+
 ## 0.1.4 - 2026-03-10
 
 - feishu: add webhook verification token check for real event subscription chain
