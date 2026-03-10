@@ -27,7 +27,16 @@ async def test_telegram_parse_and_send(monkeypatch):
         sent["timeout"] = timeout
         return {"ok": True}
 
+    async def _fake_multipart(url, fields, files, headers, timeout):
+        sent["url"] = url
+        sent["fields"] = fields
+        sent["files"] = files
+        sent["headers"] = headers
+        sent["timeout"] = timeout
+        return {"ok": True}
+
     monkeypatch.setattr("cli_claw.channels.telegram.post_json", _fake_post)
+    monkeypatch.setattr("cli_claw.channels.telegram.post_multipart", _fake_multipart)
 
     payload = {
         "update_id": 1,
@@ -47,6 +56,23 @@ async def test_telegram_parse_and_send(monkeypatch):
     await channel.send(OutboundEnvelope(channel="telegram", chat_id="200", text="ok"))
     assert "/bottoken/sendMessage" in sent["url"]
     assert sent["payload"]["text"] == "ok"
+
+    attachment = OutboundEnvelope(
+        channel="telegram",
+        chat_id="200",
+        text="file",
+        attachments=[
+            {
+                "kind": "file",
+                "name": "demo.txt",
+                "path": "/tmp/demo.txt",
+            }
+        ],
+    )
+    await channel.send(attachment)
+    assert "/bottoken/sendDocument" in sent["url"]
+    assert sent["fields"]["caption"] == "file"
+    assert "document" in sent["files"]
 
 
 @pytest.mark.asyncio

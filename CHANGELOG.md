@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.7 - 2026-03-11
+
+- channels: add multipart upload support for attachment delivery
+- telegram: parse inbound media metadata and support outbound file/image/audio/video attachments
+- tests: cover telegram attachment send path
+
 ## 0.1.6 - 2026-03-10
 
 - channels: add stub channel classes for Slack/Discord/Telegram/Email/Dingtalk/Mochat/QQ/Whatsapp to mirror iflow-bot coverage
