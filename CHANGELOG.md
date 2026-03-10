@@ -12,6 +12,10 @@
 - feishu: return HTTP status codes from webhook processor and cover invalid token case
 - feishu: allow configuration via `FEISHU_VERIFICATION_TOKEN`
 
+## 0.1.4 - 2026-03-10
+
+- scripts: add `scripts/feishu_e2e_sim.py` and example payload to validate webhook -> runtime -> outbound flow
+
 ## 0.1.3 - 2026-03-10
 
 - channels: route Feishu webhook inbound events through ChannelRuntime (parse -> runtime) and add challenge test coverage
