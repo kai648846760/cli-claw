@@ -80,6 +80,9 @@ class ChannelRuntime:
                 metadata={"provider": provider_id, "logical_session_id": logical_session_id},
             )
 
+        if inbound.metadata:
+            outbound.metadata = {**inbound.metadata, **(outbound.metadata or {})}
+
         await self.channels.enqueue(outbound)
 
     async def handle_inbound(self, channel_name: str, inbound: InboundEnvelope) -> None:

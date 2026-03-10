@@ -5,6 +5,13 @@
 - channels: add stub channel classes for Slack/Discord/Telegram/Email/Dingtalk/Mochat/QQ/Whatsapp to mirror iflow-bot coverage
 - tests: add stub channel smoke test
 
+## 0.1.6 - 2026-03-10
+
+- channels: add Telegram/Slack/Discord webhook MVPs with inbound parsing, runtime routing, and outbound text send
+- channels: add simple webhook MVPs for Email/Dingtalk/Mochat/QQ/Whatsapp
+- cli: add webhook entrypoints for Telegram/Slack/Discord and simple webhook runner for other channels
+- tests: cover new channel parsing, outbound send, and webhook -> runtime routing
+
 ## 0.1.5 - 2026-03-10
 
 - feishu: add encrypt-key signature verification for webhook callbacks
