@@ -230,3 +230,35 @@ async def test_telegram_failure_downgrade(monkeypatch):
     assert sent["envelope"].error_code == "delivery_error"
 
     await manager.stop_all()
+
+
+@pytest.mark.asyncio
+async def test_slack_failure_downgrade(monkeypatch):
+    from cli_claw.channels.manager import ChannelManager
+
+    manager = ChannelManager()
+    channel = SlackChannel()
+    channel.config.webhook_url = "https://example.com/hook"
+    manager.register("slack", lambda: channel)
+    await manager.start_enabled(["slack"])
+
+    sent = {}
+
+    async def _fake_send(self, envelope):
+        if envelope.kind != "error":
+            raise RuntimeError("boom")
+        sent["envelope"] = envelope
+
+    monkeypatch.setattr(SlackChannel, "send", _fake_send)
+
+    await manager.enqueue(
+        OutboundEnvelope(channel="slack", chat_id="c1", text="hi", message_id="m1", receipt_id="r1")
+    )
+    await manager._queue.join()
+
+    assert sent["envelope"].kind == "error"
+    assert sent["envelope"].receipt_id == "r1"
+    assert sent["envelope"].delivery_status == "failed"
+    assert sent["envelope"].error_code == "delivery_error"
+
+    await manager.stop_all()

@@ -37,7 +37,7 @@ class SlackChannel(BaseChannel):
         self._running = False
 
     def is_allowed(self, envelope: OutboundEnvelope) -> bool:
-        return envelope.kind == "text" and not envelope.attachments
+        return envelope.kind in ("text", "error")
 
     def parse_inbound_event(self, payload: dict[str, Any]) -> InboundEnvelope | None:
         event = payload.get("event") or {}
