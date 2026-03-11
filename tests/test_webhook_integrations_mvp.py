@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 
@@ -206,6 +207,34 @@ async def test_slack_webhook_rejects_missing_signature(monkeypatch):
         payload,
         raw_body,
         headers=None,
+    )
+
+    assert status == 401
+    assert response == {"ok": False, "error": "invalid signature"}
+
+
+@pytest.mark.asyncio
+async def test_slack_webhook_rejects_invalid_signature(monkeypatch):
+    channel = SlackChannel()
+    channel.config.signing_secret = "secret"
+
+    def _boom(_payload):
+        raise AssertionError("parse_inbound_event should not be called for invalid signature")
+
+    monkeypatch.setattr(channel, "parse_inbound_event", _boom)
+
+    payload = {"event": {"type": "message"}}
+    raw_body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "X-Slack-Request-Timestamp": str(int(time.time())),
+        "X-Slack-Signature": "v0=bad",
+    }
+    status, response = await process_slack_webhook_payload(
+        channel,
+        object(),
+        payload,
+        raw_body,
+        headers=headers,
     )
 
     assert status == 401
