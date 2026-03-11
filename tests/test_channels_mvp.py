@@ -198,3 +198,35 @@ async def test_simple_channels_parse_and_send(monkeypatch):
         await channel.send(OutboundEnvelope(channel=channel.name, chat_id="c1", text="ok"))
         assert sent["url"] == "https://example.com/hook"
         assert sent["payload"]["text"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_telegram_failure_downgrade(monkeypatch):
+    from cli_claw.channels.manager import ChannelManager
+
+    manager = ChannelManager()
+    channel = TelegramChannel()
+    channel.config.bot_token = "token"
+    manager.register("telegram", lambda: channel)
+    await manager.start_enabled(["telegram"])
+
+    sent = {}
+
+    async def _fake_send(self, envelope):
+        if envelope.kind != "error":
+            raise RuntimeError("boom")
+        sent["envelope"] = envelope
+
+    monkeypatch.setattr(TelegramChannel, "send", _fake_send)
+
+    await manager.enqueue(
+        OutboundEnvelope(channel="telegram", chat_id="c1", text="hi", message_id="m1", receipt_id="r1")
+    )
+    await manager._queue.join()
+
+    assert sent["envelope"].kind == "error"
+    assert sent["envelope"].receipt_id == "r1"
+    assert sent["envelope"].delivery_status == "failed"
+    assert sent["envelope"].error_code == "delivery_error"
+
+    await manager.stop_all()

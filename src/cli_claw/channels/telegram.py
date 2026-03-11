@@ -39,7 +39,7 @@ class TelegramChannel(BaseChannel):
         self._running = False
 
     def is_allowed(self, envelope: OutboundEnvelope) -> bool:
-        return envelope.kind == "text" and not envelope.attachments
+        return envelope.kind == "error" or (envelope.kind == "text" and not envelope.attachments)
 
     def parse_inbound_event(self, payload: dict[str, Any]) -> InboundEnvelope | None:
         message = (
