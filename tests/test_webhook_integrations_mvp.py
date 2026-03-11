@@ -189,6 +189,30 @@ async def test_slack_webhook_routes_to_runtime(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_slack_webhook_rejects_missing_signature(monkeypatch):
+    channel = SlackChannel()
+    channel.config.signing_secret = "secret"
+
+    def _boom(_payload):
+        raise AssertionError("parse_inbound_event should not be called for invalid signature")
+
+    monkeypatch.setattr(channel, "parse_inbound_event", _boom)
+
+    payload = {"event": {"type": "message"}}
+    raw_body = json.dumps(payload).encode("utf-8")
+    status, response = await process_slack_webhook_payload(
+        channel,
+        object(),
+        payload,
+        raw_body,
+        headers=None,
+    )
+
+    assert status == 401
+    assert response == {"ok": False, "error": "invalid signature"}
+
+
+@pytest.mark.asyncio
 async def test_discord_webhook_routes_to_runtime(monkeypatch):
     channel = DiscordChannel()
     channel.config.base_url = "https://discord.test/api"
