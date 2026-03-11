@@ -100,6 +100,54 @@ async def test_telegram_webhook_routes_to_runtime(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_telegram_webhook_rejects_invalid_secret(monkeypatch):
+    channel = TelegramChannel()
+    channel.config.webhook_secret = "secret"
+
+    def _boom(_payload):
+        raise AssertionError("parse_inbound_event should not be called for invalid secret")
+
+    monkeypatch.setattr(channel, "parse_inbound_event", _boom)
+
+    payload = {"update_id": 1}
+    raw_body = json.dumps(payload).encode("utf-8")
+    status, response = await process_telegram_webhook_payload(
+        channel,
+        object(),
+        payload,
+        raw_body,
+        headers={"X-Telegram-Bot-Api-Secret-Token": "wrong"},
+    )
+
+    assert status == 401
+    assert response == {"ok": False, "error": "invalid token"}
+
+
+@pytest.mark.asyncio
+async def test_telegram_webhook_rejects_missing_secret(monkeypatch):
+    channel = TelegramChannel()
+    channel.config.webhook_secret = "secret"
+
+    def _boom(_payload):
+        raise AssertionError("parse_inbound_event should not be called for missing secret")
+
+    monkeypatch.setattr(channel, "parse_inbound_event", _boom)
+
+    payload = {"update_id": 1}
+    raw_body = json.dumps(payload).encode("utf-8")
+    status, response = await process_telegram_webhook_payload(
+        channel,
+        object(),
+        payload,
+        raw_body,
+        headers=None,
+    )
+
+    assert status == 401
+    assert response == {"ok": False, "error": "invalid token"}
+
+
+@pytest.mark.asyncio
 async def test_slack_webhook_routes_to_runtime(monkeypatch):
     channel = SlackChannel()
     channel.config.webhook_url = "https://example.com/hook"
