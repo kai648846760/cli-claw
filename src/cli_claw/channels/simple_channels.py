@@ -6,6 +6,11 @@ from typing import Any
 
 from cli_claw.channels.base import BaseChannel
 from cli_claw.channels.http_client import post_json
+from cli_claw.channels.email import EmailChannel
+from cli_claw.channels.dingtalk import DingTalkChannel
+from cli_claw.channels.mochat import MochatChannel
+from cli_claw.channels.qq import QQChannel
+from cli_claw.channels.whatsapp import WhatsAppChannel
 from cli_claw.schemas.channel import InboundEnvelope, OutboundEnvelope
 
 
@@ -68,26 +73,8 @@ class SimpleWebhookChannel(BaseChannel):
         await post_json(self.config.webhook_url, payload, headers={}, timeout=self.config.request_timeout)
 
 
-class EmailChannel(SimpleWebhookChannel):
-    name = "email"
-    env_prefix = "EMAIL"
-
-
-class DingtalkChannel(SimpleWebhookChannel):
-    name = "dingtalk"
-    env_prefix = "DINGTALK"
-
-
-class MochatChannel(SimpleWebhookChannel):
-    name = "mochat"
-    env_prefix = "MOCHAT"
-
-
-class QQChannel(SimpleWebhookChannel):
-    name = "qq"
-    env_prefix = "QQ"
-
-
-class WhatsappChannel(SimpleWebhookChannel):
-    name = "whatsapp"
-    env_prefix = "WHATSAPP"
+SimpleEmailChannel = EmailChannel
+SimpleDingtalkChannel = DingTalkChannel
+SimpleMochatChannel = MochatChannel
+SimpleQQChannel = QQChannel
+SimpleWhatsappChannel = WhatsAppChannel
