@@ -158,7 +158,13 @@ def _build_runtime(provider: str, channel_name: str, channel_factory, *, log_pat
     manager = ChannelManager()
     manager.register(channel_name, channel_factory)
 
-    runtime = ChannelRuntime(rt, manager)
+    runtime = ChannelRuntime(
+        rt,
+        manager,
+        heartbeat_enabled=bool(cfg.runtime.heartbeat_enabled),
+        heartbeat_interval_seconds=int(cfg.runtime.heartbeat_interval_seconds),
+        schedules=cfg.runtime.schedules,
+    )
     runtime.register_route(channel_name, provider)
     return runtime, manager
 

@@ -1,6 +1,6 @@
 [project]
 name = "cli-claw"
-version = "0.1.0"
+version = "0.2.2"
 description = "A provider-agnostic multi-CLI agent runtime platform"
 readme = "README.md"
 requires-python = ">=3.11"

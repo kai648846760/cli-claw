@@ -133,6 +133,39 @@ The runtime injects the latest summary plus recent messages into each provider p
 - `/help` - show help
 - `/language` - set language (`en-US`, `zh-CN`)
 
+### Heartbeat + scheduled tasks
+
+You can enable a lightweight heartbeat and simple scheduled tasks in `runtime`:
+
+```json
+{
+  "runtime": {
+    "heartbeat_enabled": true,
+    "heartbeat_interval_seconds": 60,
+    "schedules": [
+      {
+        "name": "daily-report",
+        "enabled": true,
+        "channel": "telegram",
+        "chat_id": "123456789",
+        "message": "生成日报并总结关键事项",
+        "daily_at": "09:00"
+      },
+      {
+        "name": "soak-ping",
+        "enabled": true,
+        "channel": "telegram",
+        "chat_id": "123456789",
+        "message": "ping",
+        "interval_seconds": 600
+      }
+    ]
+  }
+}
+```
+
+Scheduled tasks are executed as inbound messages routed through the configured provider for that channel.
+
 Example:
 
 ```json

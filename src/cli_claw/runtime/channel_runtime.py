@@ -4,6 +4,8 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from cli_claw.channels.manager import ChannelManager
 from cli_claw.runtime.orchestrator import RuntimeOrchestrator
@@ -102,12 +104,21 @@ class ChannelRuntime:
         self,
         orchestrator: RuntimeOrchestrator,
         channel_manager: ChannelManager | None = None,
+        *,
+        heartbeat_enabled: bool = False,
+        heartbeat_interval_seconds: int = 60,
+        schedules: list[dict[str, Any]] | None = None,
     ) -> None:
         self.orchestrator = orchestrator
         self.channels = channel_manager or ChannelManager()
         self._routes: dict[str, str] = {}
         self._running = False
         self.channels.set_delivery_handler(self._record_delivery)
+        self._heartbeat_enabled = heartbeat_enabled
+        self._heartbeat_interval_seconds = max(5, int(heartbeat_interval_seconds))
+        self._schedules = schedules or []
+        self._heartbeat_task: asyncio.Task | None = None
+        self._schedule_task: asyncio.Task | None = None
 
     def register_route(self, channel: str, provider: str) -> None:
         self._routes[channel] = provider
@@ -132,11 +143,29 @@ class ChannelRuntime:
             tasks.append(asyncio.create_task(provider.start()))
         if tasks:
             await asyncio.gather(*tasks)
+        if self._heartbeat_enabled:
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        if self._schedules:
+            self._schedule_task = asyncio.create_task(self._schedule_loop())
         self._running = True
 
     async def stop(self) -> None:
         if not self._running:
             return
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            self._heartbeat_task = None
+        if self._schedule_task:
+            self._schedule_task.cancel()
+            try:
+                await self._schedule_task
+            except asyncio.CancelledError:
+                pass
+            self._schedule_task = None
         await self.channels.stop_all()
         providers = {provider_id for provider_id in self._routes.values() if provider_id}
         tasks = []
@@ -151,6 +180,14 @@ class ChannelRuntime:
         provider_id = self._routes.get(channel_name)
         if provider_id is None:
             raise ValueError(f"Channel '{channel_name}' has no provider route")
+        await self._handle_inbound_with_provider(channel_name, provider_id, inbound)
+
+    async def _handle_inbound_with_provider(
+        self,
+        channel_name: str,
+        provider_id: str,
+        inbound: InboundEnvelope,
+    ) -> None:
 
         thread_id = None
         if inbound.metadata:
@@ -287,6 +324,141 @@ class ChannelRuntime:
             outbound.metadata = {**inbound.metadata, **(outbound.metadata or {})}
 
         await self.channels.enqueue(outbound)
+
+    async def _heartbeat_loop(self) -> None:
+        while True:
+            try:
+                providers: dict[str, bool] = {}
+                for provider_id in set(self._routes.values()):
+                    try:
+                        provider = self.orchestrator.providers.get(provider_id)
+                        health = await provider.health_check()
+                    except Exception:
+                        health = False
+                    providers[provider_id] = bool(health)
+                channels = {name: ch.is_running for name, ch in self.channels.channels.items()}
+                self.orchestrator.observability.emit(
+                    RuntimeEvent(
+                        type=EventType.TRACE_STEP,
+                        payload={
+                            "heartbeat": True,
+                            "providers": providers,
+                            "channels": channels,
+                        },
+                    )
+                )
+                await asyncio.sleep(self._heartbeat_interval_seconds)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Heartbeat loop failed")
+                await asyncio.sleep(self._heartbeat_interval_seconds)
+
+    async def _schedule_loop(self) -> None:
+        tasks = self._build_schedule_tasks(self._schedules)
+        if not tasks:
+            return
+        while True:
+            try:
+                now = datetime.now().astimezone()
+                next_due = None
+                for task in tasks:
+                    if not task.enabled:
+                        continue
+                    if task.next_run is None:
+                        task.next_run = task.compute_next_run(now)
+                    if task.next_run and now >= task.next_run:
+                        await self._run_scheduled_task(task)
+                        task.last_run = now
+                        task.next_run = task.compute_next_run(now)
+                    if task.next_run:
+                        next_due = task.next_run if next_due is None else min(next_due, task.next_run)
+                if next_due is None:
+                    await asyncio.sleep(5)
+                else:
+                    sleep_for = max(1.0, (next_due - datetime.now().astimezone()).total_seconds())
+                    await asyncio.sleep(min(sleep_for, 5.0))
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Schedule loop failed")
+                await asyncio.sleep(5)
+
+    async def _run_scheduled_task(self, task: "ScheduledTask") -> None:
+        channel = self.channels.get(task.channel)
+        if channel is None or not channel.is_running:
+            logger.warning("Scheduled task '%s' skipped (channel not running)", task.name)
+            return
+        provider_id = task.provider or self._routes.get(task.channel)
+        if not provider_id:
+            logger.warning("Scheduled task '%s' skipped (provider missing)", task.name)
+            return
+        inbound = InboundEnvelope(
+            channel=task.channel,
+            chat_id=task.chat_id,
+            text=task.message,
+            metadata={"scheduled_task": task.name},
+        )
+        await self._handle_inbound_with_provider(task.channel, provider_id, inbound)
+
+    @staticmethod
+    def _build_schedule_tasks(raw: list[dict[str, Any]]) -> list["ScheduledTask"]:
+        tasks: list[ScheduledTask] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            channel = str(item.get("channel") or "").strip()
+            chat_id = str(item.get("chat_id") or "").strip()
+            message = str(item.get("message") or "").strip()
+            if not channel or not chat_id or not message:
+                continue
+            tasks.append(
+                ScheduledTask(
+                    name=name,
+                    channel=channel,
+                    chat_id=chat_id,
+                    message=message,
+                    provider=str(item.get("provider") or "").strip() or None,
+                    enabled=bool(item.get("enabled", True)),
+                    interval_seconds=item.get("interval_seconds"),
+                    daily_at=str(item.get("daily_at") or "").strip() or None,
+                )
+            )
+        return tasks
+
+
+@dataclass
+class ScheduledTask:
+    name: str
+    channel: str
+    chat_id: str
+    message: str
+    provider: str | None = None
+    enabled: bool = True
+    interval_seconds: int | None = None
+    daily_at: str | None = None
+    last_run: datetime | None = None
+    next_run: datetime | None = None
+
+    def compute_next_run(self, now: datetime) -> datetime | None:
+        if self.interval_seconds:
+            return now + timedelta(seconds=int(self.interval_seconds))
+        if self.daily_at:
+            try:
+                hour, minute = self.daily_at.split(":", 1)
+                hour_i = int(hour)
+                minute_i = int(minute)
+            except Exception:
+                return None
+            local_now = now.astimezone()
+            target = local_now.replace(hour=hour_i, minute=minute_i, second=0, microsecond=0)
+            if target <= now:
+                target = target + timedelta(days=1)
+            return target
+        return None
 
     async def _record_delivery(self, envelope: OutboundEnvelope) -> None:
         metadata = envelope.metadata or {}

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 - 2026-03-13
+
+- runtime: add heartbeat loop with provider/channel health metrics
+- runtime: add scheduled task runner (interval or daily) for automated prompts
+
 ## 0.2.1 - 2026-03-13
 
 - memory: switch to SQLite-backed memory store with JSONL append for per-message history

@@ -408,6 +408,9 @@ _DEFAULT_CONFIG = {
         "timeout": 600,
         "compression_provider": None,
         "compression_prompt": "Summarize the conversation so far with key decisions and context.",
+        "heartbeat_enabled": False,
+        "heartbeat_interval_seconds": 60,
+        "schedules": [],
     },
 }
 

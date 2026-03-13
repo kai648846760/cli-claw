@@ -40,6 +40,9 @@ class RuntimeConfig(BaseModel):
     timeout: int = 600
     compression_provider: str | None = None
     compression_prompt: str | None = None
+    heartbeat_enabled: bool = False
+    heartbeat_interval_seconds: int = 60
+    schedules: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class CliClawConfig(BaseModel):
