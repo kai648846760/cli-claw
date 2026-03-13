@@ -74,7 +74,10 @@ async def process_discord_webhook_payload(
         return 200, {"ok": True, "skipped": True}
 
     await runtime.handle_inbound(channel.name, inbound)
-    return 200, {"type": 5}
+
+    if payload.get("type") == 2:
+        return 200, {"type": 5}
+    return 200, {"ok": True}
 
 
 def _make_handler(

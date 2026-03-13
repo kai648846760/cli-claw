@@ -36,6 +36,27 @@ def test_feishu_parse_inbound_text_event():
     assert inbound.metadata["thread_id"] == "om_root"
 
 
+def test_feishu_parse_share_event():
+    payload = {
+        "schema": "2.0",
+        "header": {"event_type": "im.message.receive_v1", "tenant_key": "t1"},
+        "event": {
+            "sender": {"sender_id": {"open_id": "ou_123"}},
+            "message": {
+                "message_id": "om_2",
+                "chat_id": "oc_9",
+                "chat_type": "p2p",
+                "message_type": "share_chat",
+                "content": "{\"text\":\"share\"}",
+            },
+        },
+    }
+    channel = FeishuChannel()
+    inbound = channel.parse_inbound_event(payload)
+    assert inbound is not None
+    assert inbound.attachments
+
+
 @pytest.mark.asyncio
 async def test_feishu_send_text_via_webhook():
     captured = {}
@@ -52,8 +73,11 @@ async def test_feishu_send_text_via_webhook():
 
     await channel.start()
     await channel.send(OutboundEnvelope(channel="feishu", chat_id="c1", text="hi"))
+    await channel.send(
+        OutboundEnvelope(channel="feishu", chat_id="c1", text="boom", kind="error")
+    )
     await channel.stop()
 
     assert captured["url"] == "https://example.com/hook"
     assert captured["payload"]["msg_type"] == "text"
-    assert captured["payload"]["content"]["text"] == "hi"
+    assert captured["payload"]["content"]["text"] == "boom"

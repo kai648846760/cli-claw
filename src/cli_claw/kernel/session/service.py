@@ -43,6 +43,12 @@ class SessionKernel:
             self._channel_bindings.pop(key, None)
         return cleared
 
+    def reset_binding(self, provider: str, channel: str, chat_id: str, thread_id: str | None = None) -> None:
+        binding_key = self._binding_key(provider=provider, channel=channel, chat_id=chat_id, thread_id=thread_id)
+        logical_session_id = self._channel_bindings.pop(binding_key, None)
+        if logical_session_id:
+            self._states.pop(logical_session_id, None)
+
     @staticmethod
     def _binding_key(provider: str, channel: str, chat_id: str, thread_id: str | None) -> str:
         return "::".join([provider, channel, chat_id, thread_id or "root"])

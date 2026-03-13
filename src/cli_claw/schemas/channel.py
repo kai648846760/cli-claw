@@ -37,4 +37,8 @@ class OutboundEnvelope(BaseModel):
     stream_id: str | None = None
     stream_seq: int | None = None
     stream_final: bool = True
+    receipt_id: str | None = None
+    delivery_status: Literal["pending", "sent", "failed"] | None = None
+    error_code: str | None = None
+    error_detail: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)

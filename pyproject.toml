@@ -17,6 +17,10 @@ dependencies = [
   "cryptography>=42.0.0",
 ]
 
+[project.scripts]
+cli-claw = "cli_claw.cli.main:app"
+cli_claw = "cli_claw.cli.main:app"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3.5",

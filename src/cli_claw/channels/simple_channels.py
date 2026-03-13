@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from cli_claw.channels.base import BaseChannel
 from cli_claw.channels.http_client import post_json
+from cli_claw.channels.simple_webhook_utils import parse_simple_inbound
 from cli_claw.channels.email import EmailChannel
 from cli_claw.channels.dingtalk import DingTalkChannel
 from cli_claw.channels.mochat import MochatChannel
@@ -19,12 +20,15 @@ class SimpleWebhookConfig:
     webhook_url: str | None = None
     verification_token: str | None = None
     request_timeout: float = 10.0
+    allow_from: list[str] = field(default_factory=list)
 
 
 def _load_config(prefix: str) -> SimpleWebhookConfig:
+    allow_from = [item for item in os.getenv(f"{prefix}_ALLOW_FROM", "").split(",") if item.strip()]
     return SimpleWebhookConfig(
         webhook_url=os.getenv(f"{prefix}_WEBHOOK_URL"),
         verification_token=os.getenv(f"{prefix}_VERIFICATION_TOKEN"),
+        allow_from=allow_from,
     )
 
 
@@ -43,26 +47,10 @@ class SimpleWebhookChannel(BaseChannel):
         self._running = False
 
     def is_allowed(self, envelope: OutboundEnvelope) -> bool:
-        return envelope.kind == "text" and not envelope.attachments
+        return envelope.kind in ("text", "error")
 
     def parse_inbound_event(self, payload: dict[str, Any]) -> InboundEnvelope | None:
-        text = payload.get("text")
-        if not isinstance(text, str):
-            return None
-
-        metadata = payload.get("metadata")
-        if not isinstance(metadata, dict):
-            metadata = {}
-
-        return InboundEnvelope(
-            channel=self.name,
-            chat_id=str(payload.get("chat_id") or ""),
-            sender_id=str(payload.get("sender_id") or "") or None,
-            message_id=str(payload.get("message_id") or "") or None,
-            reply_to_id=str(payload.get("reply_to_id") or "") or None,
-            text=text,
-            metadata=metadata,
-        )
+        return parse_simple_inbound(self.name, payload, allow_from=self.config.allow_from)
 
     async def send(self, envelope: OutboundEnvelope) -> None:
         if not self.is_allowed(envelope):

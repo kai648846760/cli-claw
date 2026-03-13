@@ -114,7 +114,18 @@ async def post_json(
     headers: dict[str, str],
     timeout: float,
 ) -> dict[str, Any]:
-    return await asyncio.to_thread(request_json, url, payload, headers, timeout)
+    retries = 2
+    base_delay = 0.5
+    for attempt in range(retries + 1):
+        try:
+            return await asyncio.to_thread(request_json, url, payload, headers, timeout)
+        except RuntimeError as exc:
+            message = str(exc).lower()
+            retryable = "http request failed" in message or "timed out" in message or "unexpected_eof" in message
+            if not retryable or attempt >= retries:
+                raise
+            await asyncio.sleep(base_delay * (2**attempt))
+    return {}
 
 
 async def post_multipart(
@@ -124,4 +135,15 @@ async def post_multipart(
     headers: dict[str, str],
     timeout: float,
 ) -> dict[str, Any]:
-    return await asyncio.to_thread(request_multipart, url, fields, files, headers, timeout)
+    retries = 2
+    base_delay = 0.5
+    for attempt in range(retries + 1):
+        try:
+            return await asyncio.to_thread(request_multipart, url, fields, files, headers, timeout)
+        except RuntimeError as exc:
+            message = str(exc).lower()
+            retryable = "http request failed" in message or "timed out" in message or "unexpected_eof" in message
+            if not retryable or attempt >= retries:
+                raise
+            await asyncio.sleep(base_delay * (2**attempt))
+    return {}

@@ -34,6 +34,13 @@ class BaseChannel(ABC):
         _ = envelope
         return True
 
+    def supports_streaming(self) -> bool:
+        return False
+
+    async def send_typing(self, chat_id: str) -> None:
+        _ = chat_id
+        return
+
     def set_inbound_handler(self, handler: InboundHandler | None) -> None:
         self._inbound_handler = handler
 

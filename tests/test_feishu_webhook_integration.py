@@ -209,6 +209,33 @@ async def test_feishu_webhook_rejects_invalid_signature():
 
 
 @pytest.mark.asyncio
+async def test_feishu_webhook_rejects_missing_signature():
+    channel = FeishuChannel()
+    channel.config.encrypt_key = "encrypt-key"
+
+    manager = ChannelManager()
+    manager.register("feishu", lambda: channel)
+
+    orchestrator = RuntimeOrchestrator()
+    orchestrator.providers = _FakeRegistry(_FakeProvider())
+
+    runtime = ChannelRuntime(orchestrator, manager)
+    runtime.register_route("feishu", "fake")
+    await runtime.start(["feishu"])
+
+    payload = {"challenge": "token-123"}
+    raw_body = json.dumps(payload).encode("utf-8")
+    status, response = await process_feishu_webhook_payload(
+        channel, runtime, payload, raw_body, headers=None
+    )
+
+    assert status == 401
+    assert response["ok"] is False
+
+    await runtime.stop()
+
+
+@pytest.mark.asyncio
 async def test_feishu_webhook_decrypts_payload():
     channel = FeishuChannel()
     channel.config.bot_webhook_url = "https://example.com/hook"

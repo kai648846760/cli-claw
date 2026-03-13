@@ -9,7 +9,7 @@ class SessionCapability(Protocol):
 
 
 class StreamingCapability(Protocol):
-    async def chat_stream(self, logical_session_id: str, message: str): ...
+    async def chat_stream(self, logical_session_id: str, message: str, attachments=None): ...
 
 
 class HistoryCapability(Protocol):

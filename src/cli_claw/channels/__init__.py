@@ -3,13 +3,11 @@ from cli_claw.channels.discord import DiscordChannel
 from cli_claw.channels.feishu import FeishuChannel
 from cli_claw.channels.local import LocalChannel
 from cli_claw.channels.manager import ChannelManager
-from cli_claw.channels.simple_channels import (
-    DingtalkChannel,
-    EmailChannel,
-    MochatChannel,
-    QQChannel,
-    WhatsappChannel,
-)
+from cli_claw.channels.dingtalk import DingTalkChannel
+from cli_claw.channels.email import EmailChannel
+from cli_claw.channels.mochat import MochatChannel
+from cli_claw.channels.qq import QQChannel
+from cli_claw.channels.whatsapp import WhatsAppChannel
 from cli_claw.channels.slack import SlackChannel
 from cli_claw.channels.telegram import TelegramChannel
 
@@ -22,8 +20,8 @@ __all__ = [
     "DiscordChannel",
     "TelegramChannel",
     "EmailChannel",
-    "DingtalkChannel",
+    "DingTalkChannel",
     "MochatChannel",
     "QQChannel",
-    "WhatsappChannel",
+    "WhatsAppChannel",
 ]

@@ -6,7 +6,7 @@ import pytest
 from cli_claw.channels.discord import DiscordChannel
 from cli_claw.channels.discord_webhook import process_discord_webhook_payload
 from cli_claw.channels.manager import ChannelManager
-from cli_claw.channels.simple_channels import EmailChannel
+from cli_claw.channels.simple_channels import EmailChannel, SimpleWebhookChannel
 from cli_claw.channels.simple_webhook import process_simple_webhook_payload
 from cli_claw.channels.slack import SlackChannel
 from cli_claw.channels.slack_webhook import process_slack_webhook_payload
@@ -14,6 +14,7 @@ from cli_claw.channels.telegram import TelegramChannel
 from cli_claw.channels.telegram_webhook import process_telegram_webhook_payload
 from cli_claw.runtime.channel_runtime import ChannelRuntime
 from cli_claw.runtime.orchestrator import RuntimeOrchestrator
+from cli_claw.schemas.channel import InboundEnvelope
 
 
 class _FakeProvider:
@@ -43,6 +44,15 @@ class _FakeProvider:
 
     async def list_models(self) -> list[str]:
         return ["fake"]
+
+
+class _RecordingRuntime:
+    def __init__(self) -> None:
+        self.inbound: InboundEnvelope | None = None
+
+    async def handle_inbound(self, channel_name: str, inbound: InboundEnvelope) -> None:
+        _ = channel_name
+        self.inbound = inbound
 
 
 class _FakeRegistry:
@@ -282,15 +292,45 @@ async def test_discord_webhook_routes_to_runtime(monkeypatch):
 
     assert status == 200
     assert response == {"type": 5}
-    assert captured["url"] == "https://discord.test/api/webhooks/app/tok"
+    assert captured["url"] == "https://discord.test/api/webhooks/app/tok?wait=true"
     assert captured["payload"]["content"] == "echo:/ping"
 
     await runtime.stop()
 
 
 @pytest.mark.asyncio
+async def test_discord_webhook_rejects_invalid_signature():
+    channel = DiscordChannel()
+    channel.config.public_key = "0" * 64
+
+    payload = {"type": 1}
+    raw_body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "X-Signature-Ed25519": "0" * 128,
+        "X-Signature-Timestamp": "1",
+    }
+
+    status, response = await process_discord_webhook_payload(channel, object(), payload, raw_body, headers)
+    assert status == 401
+    assert response == {"error": "invalid signature"}
+
+
+@pytest.mark.asyncio
+async def test_discord_webhook_rejects_missing_signature():
+    channel = DiscordChannel()
+    channel.config.public_key = "0" * 64
+
+    payload = {"type": 1}
+    raw_body = json.dumps(payload).encode("utf-8")
+
+    status, response = await process_discord_webhook_payload(channel, object(), payload, raw_body, headers=None)
+    assert status == 401
+    assert response == {"error": "invalid signature"}
+
+
+@pytest.mark.asyncio
 async def test_simple_webhook_routes_to_runtime(monkeypatch):
-    channel = EmailChannel()
+    channel = SimpleWebhookChannel()
     channel.config.webhook_url = "https://example.com/hook"
 
     captured = {}
@@ -305,14 +345,14 @@ async def test_simple_webhook_routes_to_runtime(monkeypatch):
     monkeypatch.setattr("cli_claw.channels.simple_channels.post_json", _fake_post)
 
     manager = ChannelManager()
-    manager.register("email", lambda: channel)
+    manager.register("simple", lambda: channel)
 
     orchestrator = RuntimeOrchestrator()
     orchestrator.providers = _FakeRegistry(_FakeProvider())
 
     runtime = ChannelRuntime(orchestrator, manager)
-    runtime.register_route("email", "fake")
-    await runtime.start(["email"])
+    runtime.register_route("simple", "fake")
+    await runtime.start(["simple"])
 
     payload = {"text": "hello", "chat_id": "c1", "sender_id": "u1"}
     raw_body = json.dumps(payload).encode("utf-8")
@@ -324,3 +364,51 @@ async def test_simple_webhook_routes_to_runtime(monkeypatch):
     assert captured["payload"]["text"] == "echo:hello"
 
     await runtime.stop()
+
+
+@pytest.mark.asyncio
+async def test_simple_webhook_rejects_invalid_token(monkeypatch):
+    channel = EmailChannel()
+    channel.config.webhook_url = "https://example.com/hook"
+    channel.config.verification_token = "secret"
+
+    def _boom(_payload):
+        raise AssertionError("parse_inbound_event should not be called for invalid token")
+
+    monkeypatch.setattr(channel, "parse_inbound_event", _boom)
+
+    payload = {"text": "hello"}
+    raw_body = json.dumps(payload).encode("utf-8")
+    status, response = await process_simple_webhook_payload(
+        channel,
+        object(),
+        payload,
+        raw_body,
+        headers={"X-Webhook-Token": "wrong"},
+    )
+
+    assert status == 401
+    assert response == {"ok": False, "error": "invalid token"}
+
+
+@pytest.mark.asyncio
+async def test_simple_webhook_accepts_payload_token():
+    channel = EmailChannel()
+    channel.config.webhook_url = "https://example.com/hook"
+    channel.config.verification_token = "secret"
+
+    runtime = _RecordingRuntime()
+
+    payload = {"text": "hello", "chat_id": "c1", "token": "secret"}
+    raw_body = json.dumps(payload).encode("utf-8")
+    status, response = await process_simple_webhook_payload(
+        channel,
+        runtime,
+        payload,
+        raw_body,
+    )
+
+    assert status == 200
+    assert response == {"ok": True}
+    assert runtime.inbound is not None
+    assert runtime.inbound.chat_id == "c1"

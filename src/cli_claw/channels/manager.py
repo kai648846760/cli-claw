@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from cli_claw.channels.base import BaseChannel, InboundHandler
 from cli_claw.schemas.channel import OutboundEnvelope
@@ -10,6 +10,7 @@ from cli_claw.schemas.channel import OutboundEnvelope
 logger = logging.getLogger(__name__)
 
 ChannelFactory = Callable[[], BaseChannel]
+DeliveryHandler = Callable[[OutboundEnvelope], Awaitable[None]]
 
 
 class ChannelManager:
@@ -18,6 +19,7 @@ class ChannelManager:
         self._channels: dict[str, BaseChannel] = {}
         self._queue: asyncio.Queue[OutboundEnvelope] = asyncio.Queue()
         self._dispatch_task: asyncio.Task | None = None
+        self._delivery_handler: DeliveryHandler | None = None
 
     def register(self, name: str, factory: ChannelFactory) -> None:
         self._registry[name] = factory
@@ -81,12 +83,72 @@ class ChannelManager:
             raise ValueError(f"Channel '{name}' not found")
         channel.set_inbound_handler(handler)
 
+    def set_delivery_handler(self, handler: DeliveryHandler | None) -> None:
+        self._delivery_handler = handler
+
+    async def _emit_delivery(self, envelope: OutboundEnvelope) -> None:
+        if self._delivery_handler is None:
+            return
+        try:
+            await self._delivery_handler(envelope)
+        except Exception:
+            logger.exception("Delivery handler failed")
+
     async def _dispatch_loop(self) -> None:
         while True:
             try:
                 envelope = await self._queue.get()
                 try:
-                    await self.send(envelope)
+                    if (
+                        envelope.stream_final
+                        and envelope.stream_id
+                        and envelope.kind == "text"
+                        and (envelope.text is None or envelope.text == "")
+                    ):
+                        if envelope.delivery_status is None:
+                            envelope.delivery_status = "sent"
+                        if envelope.receipt_id is None:
+                            envelope.receipt_id = envelope.message_id or envelope.reply_to_id
+                        await self._emit_delivery(envelope)
+                        continue
+                    channel = self._channels.get(envelope.channel)
+                    if channel is None:
+                        raise ValueError(f"Channel '{envelope.channel}' not found")
+                    if not channel.is_running:
+                        raise ValueError(f"Channel '{envelope.channel}' is not running")
+                    if not channel.is_allowed(envelope):
+                        raise ValueError(f"Channel '{envelope.channel}' rejected outbound envelope")
+                    await channel.send(envelope)
+                    if envelope.delivery_status is None:
+                        envelope.delivery_status = "sent"
+                    if envelope.receipt_id is None:
+                        envelope.receipt_id = envelope.message_id or envelope.reply_to_id
+                    await self._emit_delivery(envelope)
+                except Exception as exc:
+                    logger.exception("Error dispatching outbound envelope")
+                    failed = envelope.model_copy(
+                        update={
+                            "delivery_status": "failed",
+                            "error_code": "delivery_error",
+                            "error_detail": str(exc),
+                            "receipt_id": envelope.receipt_id or envelope.message_id or envelope.reply_to_id,
+                        }
+                    )
+                    await self._emit_delivery(failed)
+                    if envelope.kind != "error" and not (envelope.metadata or {}).get("streaming"):
+                        error_envelope = OutboundEnvelope(
+                            channel=envelope.channel,
+                            chat_id=envelope.chat_id,
+                            kind="error",
+                            text=f"delivery error: {exc}",
+                            reply_to_id=envelope.reply_to_id or envelope.message_id,
+                            receipt_id=envelope.receipt_id or envelope.message_id,
+                            delivery_status="failed",
+                            error_code="delivery_error",
+                            error_detail=str(exc),
+                            metadata=envelope.metadata or {},
+                        )
+                        await self.send(error_envelope)
                 finally:
                     self._queue.task_done()
             except asyncio.CancelledError:

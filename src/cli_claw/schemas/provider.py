@@ -25,3 +25,4 @@ class ProviderSpec(BaseModel):
     env: dict[str, str] = Field(default_factory=dict)
     capabilities: CapabilityMap = Field(default_factory=CapabilityMap)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    adapter: str | None = None

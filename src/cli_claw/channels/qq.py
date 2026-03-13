@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,8 @@ except Exception as exc:  # pragma: no cover - exercised when botpy is missing
     _BOTPY_IMPORT_ERROR = exc
 
 from cli_claw.channels.base import BaseChannel
+from cli_claw.channels.simple_webhook_utils import parse_simple_inbound, send_simple_webhook
+from cli_claw.channels.policy import sender_allowed
 from cli_claw.schemas.channel import InboundEnvelope, OutboundEnvelope
 
 logger = logging.getLogger(__name__)
@@ -33,15 +35,21 @@ def _ensure_botpy() -> None:
 
 @dataclass
 class QQConfig:
+    webhook_url: str | None = None
+    verification_token: str | None = None
+    request_timeout: float = 10.0
     app_id: str | None = None
     secret: str | None = None
     markdown_support: bool = False
     groups: list[str] | None = None
+    allow_from: list[str] = field(default_factory=list)
 
 
 def _load_config() -> QQConfig:
     groups = [g for g in os.getenv("QQ_GROUPS", "").split(",") if g.strip()]
     return QQConfig(
+        webhook_url=os.getenv("QQ_WEBHOOK_URL"),
+        verification_token=os.getenv("QQ_VERIFICATION_TOKEN"),
         app_id=os.getenv("QQ_APP_ID"),
         secret=os.getenv("QQ_SECRET"),
         markdown_support=os.getenv("QQ_MARKDOWN_SUPPORT", "false").lower() == "true",
@@ -112,9 +120,21 @@ class QQChannel(BaseChannel):
         await self._save_msg_seq_state()
 
     def is_allowed(self, envelope: OutboundEnvelope) -> bool:
-        return envelope.kind == "text"
+        return envelope.kind in ("text", "error")
+
+    def parse_inbound_event(self, payload: dict[str, Any]) -> InboundEnvelope | None:
+        return parse_simple_inbound(self.name, payload, allow_from=self.config.allow_from)
 
     async def send(self, envelope: OutboundEnvelope) -> None:
+        if self.config.webhook_url:
+            await send_simple_webhook(
+                webhook_url=self.config.webhook_url,
+                envelope=envelope,
+                timeout=self.config.request_timeout,
+                missing_message="QQ webhook missing; set QQ_WEBHOOK_URL",
+            )
+            return
+
         if not self._client:
             raise RuntimeError("QQ client not initialized")
 
@@ -179,6 +199,8 @@ class QQChannel(BaseChannel):
 
         author = data.author
         user_id = str(getattr(author, "id", None) or getattr(author, "user_openid", "unknown"))
+        if not sender_allowed(user_id, self.config.allow_from):
+            return
         content = (data.content or "").strip()
         if not content:
             return
@@ -205,6 +227,8 @@ class QQChannel(BaseChannel):
 
         author = data.author
         user_id = str(getattr(author, "member_openid", None) or getattr(author, "user_openid", "unknown"))
+        if not sender_allowed(user_id, self.config.allow_from):
+            return
         content = (data.content or "").strip()
         if not content:
             return

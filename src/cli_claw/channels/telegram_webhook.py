@@ -40,6 +40,7 @@ async def process_telegram_webhook_payload(
     if inbound is None:
         return 200, {"ok": True, "skipped": True}
 
+    await channel.hydrate_inbound(inbound)
     await runtime.handle_inbound(channel.name, inbound)
     return 200, {"ok": True}
 
