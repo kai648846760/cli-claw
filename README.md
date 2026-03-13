@@ -132,6 +132,9 @@ The runtime injects the latest summary plus recent messages into each provider p
 - `/compact` - compress current session
 - `/help` - show help
 - `/language` - set language (`en-US`, `zh-CN`)
+- `/cron` - schedule management (`list`, `add`, `delete`)
+- `/cli` - switch channel CLI (`/cli set <provider>`)
+- `/skills` - skills management (`list`, `find`, `add`, `update`)
 
 ### Heartbeat + scheduled tasks
 
@@ -165,6 +168,8 @@ You can enable a lightweight heartbeat and simple scheduled tasks in `runtime`:
 ```
 
 Scheduled tasks are executed as inbound messages routed through the configured provider for that channel.
+
+Runtime edits via `/cron add|delete` are stored in `~/.cli-claw/workspace/schedules.json`.
 
 Example:
 

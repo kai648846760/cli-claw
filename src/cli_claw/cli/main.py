@@ -161,9 +161,9 @@ def _build_runtime(provider: str, channel_name: str, channel_factory, *, log_pat
     runtime = ChannelRuntime(
         rt,
         manager,
-        heartbeat_enabled=bool(cfg.runtime.heartbeat_enabled),
-        heartbeat_interval_seconds=int(cfg.runtime.heartbeat_interval_seconds),
-        schedules=cfg.runtime.schedules,
+        heartbeat_enabled=False,
+        heartbeat_interval_seconds=60,
+        schedules=[],
     )
     runtime.register_route(channel_name, provider)
     return runtime, manager
@@ -177,12 +177,16 @@ def _build_runtime_from_config(config_path: Path | None = None):
     if not cfg.runtime.log_dir:
         cfg.runtime.log_dir = str(shared_root / "logs")
     workspace_root = None
+    schedule_store_path = None
     if cfg.runtime.workspace:
         workspace_root = Path(cfg.runtime.workspace).expanduser()
         (workspace_root / "memory").mkdir(parents=True, exist_ok=True)
         # Ensure memory.jsonl exists for fresh installs.
         (workspace_root / "memory" / "memory.jsonl").touch(exist_ok=True)
         ensure_workspace_templates(workspace_root)
+        schedule_store_path = workspace_root / "schedules.json"
+        if not schedule_store_path.exists():
+            schedule_store_path.write_text("[]", encoding="utf-8")
     if cfg.runtime.log_dir:
         Path(cfg.runtime.log_dir).expanduser().mkdir(parents=True, exist_ok=True)
 
@@ -243,7 +247,14 @@ def _build_runtime_from_config(config_path: Path | None = None):
     for channel_cfg in channels_cfg:
         manager.register(channel_cfg.name, build_channel_factory(channel_cfg.name, channel_cfg))
 
-    runtime = ChannelRuntime(rt, manager)
+    runtime = ChannelRuntime(
+        rt,
+        manager,
+        heartbeat_enabled=bool(cfg.runtime.heartbeat_enabled),
+        heartbeat_interval_seconds=int(cfg.runtime.heartbeat_interval_seconds),
+        schedules=cfg.runtime.schedules,
+        schedule_store_path=schedule_store_path,
+    )
     default_provider = cfg.runtime.default_provider
     for channel_cfg in channels_cfg:
         provider_id = channel_cfg.provider or default_provider

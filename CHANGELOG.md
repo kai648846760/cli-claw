@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3 - 2026-03-13
+
+- commands: add /cron, /cli, /skills management commands
+- schedules: persist tasks to workspace schedules.json for runtime edits
+
 ## 0.2.2 - 2026-03-13
 
 - runtime: add heartbeat loop with provider/channel health metrics
